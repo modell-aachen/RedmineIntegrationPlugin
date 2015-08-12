@@ -987,7 +987,7 @@ sub search_issue {
       return
   }
 
-  $response->header( -status => 500, -type => 'application/json', -charset => 'UTF-8' );
+  $response->header( -status => 200, -type => 'application/json', -charset => 'UTF-8' );
   $response->print(return to_json($res));
   return
 
