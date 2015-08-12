@@ -965,6 +965,7 @@ sub search_issue {
     my $sql = q/
     SELECT
       issues.id as id,
+      issues.project_id as project_id,
       issues.subject as subject,
       trackers.name as tracker,
       issue_statuses.name as status,
@@ -986,7 +987,9 @@ sub search_issue {
       return
   }
 
-  return to_json($res);
+  $response->header( -status => 500, -type => 'application/json', -charset => 'UTF-8' );
+  $response->print(return to_json($res));
+  return
 
 }
 
