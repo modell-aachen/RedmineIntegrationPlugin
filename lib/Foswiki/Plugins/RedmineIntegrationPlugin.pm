@@ -71,6 +71,12 @@ use warnings;
 use Foswiki::Func    ();    # The plugins API
 use Foswiki::Plugins ();    # For the API version
 
+use DBI;
+use Encode;
+use JSON;
+
+my $db;
+
 # $VERSION is referred to by Foswiki, and is the only global variable that
 # *must* exist in this package.  Two version formats are supported:
 #
@@ -186,38 +192,81 @@ sub initPlugin {
     # Register the _EXAMPLETAG function to handle %EXAMPLETAG{...}%
     # This will be called whenever %EXAMPLETAG% or %EXAMPLETAG{...}% is
     # seen in the topic text.
-    Foswiki::Func::registerTagHandler( 'EXAMPLETAG', \&_EXAMPLETAG );
+    Foswiki::Func::registerTagHandler( 'GET_ISSUE', \&_GET_ISSUE );
 
     # Allow a sub to be called from the REST interface
     # using the provided alias
-    Foswiki::Func::registerRESTHandler( 'example', \&restExample );
+    Foswiki::Func::registerRESTHandler( 'search_issue', \&search_issue );
 
     # Plugin correctly initialized
     return 1;
 }
 
+
+sub db {
+    return $db if defined $db;
+
+    my $host = $Foswiki::cfg{RedmineIntegrationPlugin}{Host} || "localhost";
+    my $port = $Foswiki::cfg{RedmineIntegrationPlugin}{Port} || 5432;
+    my $dbname = $Foswiki::cfg{RedmineIntegrationPlugin}{Name} || "";
+    my $username = $Foswiki::cfg{RedmineIntegrationPlugin}{User} || "";
+    my $password = $Foswiki::cfg{RedmineIntegrationPlugin}{Password} || "";
+
+    $db = DBI->connect("dbi:Pg:dbname=$dbname;host=$host;port=$port;", "$username", "$password");
+    return $db;
+}
+
 # The function used to handle the %EXAMPLETAG{...}% macro
 # You would have one of these for each macro you want to process.
-#sub _EXAMPLETAG {
-#    my($session, $params, $topic, $web, $topicObject) = @_;
-#    # $session  - a reference to the Foswiki session object
-#    #             (you probably won't need it, but documented in Foswiki.pm)
-#    # $params=  - a reference to a Foswiki::Attrs object containing
-#    #             parameters.
-#    #             This can be used as a simple hash that maps parameter names
-#    #             to values, with _DEFAULT being the name for the default
-#    #             (unnamed) parameter.
-#    # $topic    - name of the topic in the query
-#    # $web      - name of the web in the query
-#    # $topicObject - a reference to a Foswiki::Meta object containing the
-#    #             topic the macro is being rendered in (new for foswiki 1.1.x)
-#    # Return: the result of processing the macro. This will replace the
-#    # macro call in the final text.
+sub _GET_ISSUE {
+  my($session, $params, $topic, $web, $topicObject) = @_;
+  # $session  - a reference to the Foswiki session object
+  #             (you probably won't need it, but documented in Foswiki.pm)
+  # $params=  - a reference to a Foswiki::Attrs object containing
+  #             parameters.
+  #             This can be used as a simple hash that maps parameter names
+  #             to values, with _DEFAULT being the name for the default
+  #             (unnamed) parameter.
+  # $topic    - name of the topic in the query
+  # $web      - name of the web in the query
+  # $topicObject - a reference to a Foswiki::Meta object containing the
+  #             topic the macro is being rendered in (new for foswiki 1.1.x)
+  # Return: the result of processing the macro. This will replace the
+  # macro call in the final text.
+
+
+  my $db = db();
+
+  my $sql = q/
+    SELECT
+      issues.id as id,
+      issues.subject as subject,
+      trackers.name as tracker,
+      issue_statuses.name as status,
+      users.firstname || ' ' || users.lastname as assigned_to
+    FROM issues
+    LEFT JOIN issue_statuses ON issues.status_id = issue_statuses.id
+    LEFT JOIN users ON issues.assigned_to_id = users.id
+    LEFT JOIN trackers ON issues.tracker_id = trackers.id
+    WHERE issues.id = ?
+    /;
+
+  my $values_ref = $db->selectrow_hashref($sql, undef, $params->{_DEFAULT});
+
 #
 #    # For example, %EXAMPLETAG{'hamburger' sideorder="onions"}%
 #    # $params->{_DEFAULT} will be 'hamburger'
 #    # $params->{sideorder} will be 'onions'
-#}
+  # $values_ref->{'id'}
+  # $values_ref->{'subject'}
+  # $values_ref->{'tracker'}
+  # $values_ref->{'status'}
+  # $values_ref->{'assigned_to'}
+
+
+
+  return "$values_ref->{'tracker'} #$values_ref->{'id'}($values_ref->{'status'}) $values_ref->{'subject'} | Zugewiesen an $values_ref->{'assigned_to'}";
+}
 
 =begin TML
 
@@ -896,10 +945,43 @@ Foswiki:Support.Faq1
 
 =cut
 
-#sub restExample {
-#   my ( $session, $subject, $verb, $response ) = @_;
-#   return "This is an example of a REST invocation\n\n";
-#}
+sub search_issue {
+  my ( $session, $subject, $verb, $response ) = @_;
+  my $res;
+  my $req;
+  my $query = $session->{request};
+
+  eval {
+
+    my $db = db();
+
+    $req = $query->param("q");
+
+    my $sql = q/
+    SELECT
+      issues.id as id,
+      issues.subject as subject,
+      trackers.name as tracker,
+      issue_statuses.name as status,
+      users.firstname || ' ' || users.lastname as assigned_to
+    FROM issues
+    LEFT JOIN issue_statuses ON issues.status_id = issue_statuses.id
+    LEFT JOIN users ON issues.assigned_to_id = users.id
+    LEFT JOIN trackers ON issues.tracker_id = trackers.id
+    WHERE issues.subject LIKE '%'||?||'%' OR issues.id = ?
+    /;
+
+    $res = db()->selectall_arrayref($sql, {Slice => {}}, $req, int($req));
+
+  
+  };
+  if ($@) {
+      return to_json({status => 'error', 'code' => 'server_error', msg => "Server error: $@"});
+  }
+
+  return to_json($res);
+
+}
 
 =begin TML
 

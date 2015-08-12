@@ -2,10 +2,10 @@
 # ---++ RedmineIntegrationPlugin
 
 # **STRING**
-$Foswiki::cfg{RedmineIntegrationPlugin}{Host} = "";
+$Foswiki::cfg{RedmineIntegrationPlugin}{Host} = localhost;
 
 # **NUMBER**
-$Foswiki::cfg{RedmineIntegrationPlugin}{Port} = "";
+$Foswiki::cfg{RedmineIntegrationPlugin}{Port} = 5432;
 
 # **STRING**
 $Foswiki::cfg{RedmineIntegrationPlugin}{Name} = "";
