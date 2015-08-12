@@ -196,7 +196,7 @@ sub initPlugin {
 
     # Allow a sub to be called from the REST interface
     # using the provided alias
-    Foswiki::Func::registerRESTHandler( 'search_issue', \&search_issue );
+    Foswiki::Func::registerRESTHandler( 'search_issue', \&search_issue, http_allow=>'GET' );
 
     # Plugin correctly initialized
     return 1;
@@ -976,7 +976,9 @@ sub search_issue {
   
   };
   if ($@) {
-      return to_json({status => 'error', 'code' => 'server_error', msg => "Server error: $@"});
+      $response->header( -status => 500, -type => 'application/json', -charset => 'UTF-8' );
+      $response->print( to_json({status => 'error', 'code' => 'server_error', msg => "Server error: $@"}));
+      return
   }
 
   return to_json($res);
