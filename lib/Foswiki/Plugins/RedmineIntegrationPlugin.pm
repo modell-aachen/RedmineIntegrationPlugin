@@ -74,6 +74,9 @@ use Foswiki::Plugins ();    # For the API version
 use DBI;
 use Encode;
 use JSON;
+use Data::Dumper;
+use DateTime;
+use DateTime::Format::DBI;
 
 my $db;
 
@@ -197,6 +200,7 @@ sub initPlugin {
     # Allow a sub to be called from the REST interface
     # using the provided alias
     Foswiki::Func::registerRESTHandler( 'search_issue', \&search_issue, http_allow=>'GET' );
+    Foswiki::Func::registerRESTHandler( 'add_time_entry', \&add_time_entry, http_allow=>'POST' );
 
     # Plugin correctly initialized
     return 1;
@@ -982,6 +986,89 @@ sub search_issue {
   }
 
   return to_json($res);
+
+}
+
+
+
+sub add_time_entry {
+  my ( $session, $subject, $verb, $response ) = @_;
+
+  my $res;
+  my $req;
+  my $q = $session->{request};
+  my $rv;
+
+  my $db = db();
+
+  eval {
+        $req = from_json($q->param("POSTDATA") || '{}');
+
+        $req->{user_name} = $session->{user};
+
+        # Get User ID by loginname
+        my $sql_get_user_id = "SELECT id FROM users WHERE UPPER(login) = UPPER(?)";
+        $req->{user_id} = $db->selectrow_hashref($sql_get_user_id, undef, $req->{user_name})->{id};
+
+        # Check if user exist in Redmine
+        my $sql_check_user_id = "SELECT Count(*) FROM users WHERE id = ?";
+        if ($db->selectrow_hashref($sql_check_user_id, undef, $req->{user_id})->{count} == 0) {
+         die "No User found in Redmine!";
+        }
+
+        # Check if project exist in Redmine
+        my $sql_check_project_id = "SELECT Count(*) FROM projects WHERE id = ?";
+        if ($db->selectrow_hashref($sql_check_project_id, undef, $req->{project_id})->{count} == 0) {
+         die "No Project found in Redmine!";
+        }
+
+        # Check if activity exist in project in Redmine
+        my $sql_activity_id = "SELECT Count(*) FROM enumerations WHERE id = ? AND project_id = ?";
+        if ($db->selectrow_hashref($sql_activity_id, undef, $req->{activity_id}, $req->{project_id})->{count} == 0) {
+         die "No Activity found in Project!";
+        }
+
+        # Check if issue exist in project in Redmine
+        my $sql_issue_id = "SELECT Count(*) FROM issues WHERE id = ? AND project_id = ?";
+        if ($db->selectrow_hashref($sql_issue_id, undef, $req->{issue_id}, $req->{project_id})->{count} == 0) {
+         die "No Issue found in Project!";
+        }
+
+        if ($req->{hours} eq "") {
+          die "No hours provided!";
+        }
+
+        #if ($req->{spent_on} eq "") {
+        #  die "No spent_on provided!";
+        #}
+
+        if ($req->{comment} eq "") {
+          die "No comment provided!";
+        }
+
+        my $dt   = DateTime->now;
+        my $db_parser = DateTime::Format::DBI->new($db);
+
+        $req->{spent_on} = $db_parser->format_datetime($dt);
+
+        #tyear $dt->year()
+        #tmonth $dt->month()
+        #tweek $dt->week_number()
+
+        my $sth = $db->prepare("INSERT INTO time_entries (project_id, user_id, issue_id, hours, comments, activity_id, spent_on, tyear, tmonth, tweek, created_on, updated_on) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), now());");
+        $sth->execute($req->{project_id}, $req->{user_id}, $req->{issue_id}, $req->{hours}, $req->{comment}, $req->{activity_id}, $req->{spent_on}, $dt->year(), $dt->month(), $dt->week_number());
+
+        $rv = $db->last_insert_id(undef, "public", "time_entries", undef);
+
+    };
+    if ($@) {
+        $response->header( -status => 500, -type => 'application/json', -charset => 'UTF-8' );
+        $response->print( to_json({status => 'error', 'code' => 'server_error', msg => "Server error: $@"}));
+        return
+    }
+
+  return to_json({status => 'success', id => $rv});
+
 
 }
 
