@@ -200,6 +200,7 @@ sub initPlugin {
     # Allow a sub to be called from the REST interface
     # using the provided alias
     Foswiki::Func::registerRESTHandler( 'search_issue', \&search_issue, http_allow=>'GET' );
+    Foswiki::Func::registerRESTHandler( 'get_activitys', \&get_activitys, http_allow=>'GET' );
     Foswiki::Func::registerRESTHandler( 'add_time_entry', \&add_time_entry, http_allow=>'POST' );
 
     # Plugin correctly initialized
@@ -986,6 +987,32 @@ sub search_issue {
   }
 
   return to_json($res);
+
+}
+
+sub get_activitys {
+  my ( $session, $subject, $verb, $response ) = @_;
+  my $res;
+  my $req;
+  my $query = $session->{request};
+
+  eval {
+
+    my $sql = "SELECT id, name FROM enumerations where project_id=?";
+
+    $res = db()->selectall_arrayref($sql, {Slice => {}}, $query->param("project"));
+
+  
+  };
+  if ($@) {
+      $response->header( -status => 500, -type => 'application/json', -charset => 'UTF-8' );
+      $response->print( to_json({status => 'error', 'code' => 'server_error', msg => "Server error: $@"}));
+      return
+  }
+
+  $response->header( -status => 200, -type => 'application/json', -charset => 'UTF-8' );
+      $response->print( to_json($res));
+      return
 
 }
 
