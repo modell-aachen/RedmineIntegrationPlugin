@@ -196,6 +196,7 @@ sub initPlugin {
     # This will be called whenever %EXAMPLETAG% or %EXAMPLETAG{...}% is
     # seen in the topic text.
     Foswiki::Func::registerTagHandler( 'GET_ISSUE', \&_GET_ISSUE );
+    Foswiki::Func::registerTagHandler( 'RM_TIMETRACKER', \&_TIMETRACKER );
 
     # Allow a sub to be called from the REST interface
     # using the provided alias
@@ -205,6 +206,20 @@ sub initPlugin {
 
     # Plugin correctly initialized
     return 1;
+}
+
+sub css {
+    return <<CSS;
+<style media="all" type="text/css" >
+    \@import url(%PUBURLPATH%/%SYSTEMWEB%/RedmineIntegrationPlugin/rip.css?r=$RELEASE)
+</style>
+CSS
+}
+
+sub js {
+    return <<SCRIPT;
+<script type='text/javascript' src='%PUBURLPATH%/%SYSTEMWEB%/RedmineIntegrationPlugin/rip.js?r=$RELEASE'></script>
+SCRIPT
 }
 
 
@@ -223,6 +238,70 @@ sub db {
 
 # The function used to handle the %EXAMPLETAG{...}% macro
 # You would have one of these for each macro you want to process.
+
+sub _TIMETRACKER {
+  my($session, $params, $topic, $web, $topicObject) = @_;
+
+  my $contents = <<TABLE;
+<table id="time_tracker">
+    <thead>
+        <tr>
+            <th>Ticket</th>
+            <th>Activity</th>
+            <th>Comment</th>
+            <th>Time spent</th>
+            <th>Notes</th>
+            <th>Tools</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<button type="button" class="add_timer">New Time Tracker</button>
+
+<div id="tt_edit_dialog" title="Edit Time Tracker">
+  <form id="add_time_tracker">
+    <fieldset>
+      
+      <label for="input_id">ID</label>
+      <input type="text" name="input_id" id="input_id" class="text ui-widget-content ui-corner-all" disabled="true">
+
+      <label for="input_ticket">Ticket</label>
+      <input type="text" name="input_ticket" id="input_ticket" class="text">
+
+      <label for="select_activity">Activity</label>
+      <select name="select_activity" id="select_activity" class="text ui-widget-content ui-corner-all"> </select>
+
+        
+      <label for="input_comment">Comment</label>
+      <input type="text" name="input_comment" id="input_comment" class="text ui-widget-content ui-corner-all">
+
+      <label for="input_notes">Notes</label>
+      <input type="text" name="input_notes" id="input_notes" class="text ui-widget-content ui-corner-all">
+ 
+      <!-- Allow form submission with keyboard without duplicating the dialog button -->
+      <input type="submit" tabindex="-1" style="position:absolute; top:-1000px">
+    </fieldset>
+  </form>
+</div>
+TABLE
+
+Foswiki::Plugins::JQueryPlugin::createPlugin('select2');
+
+
+my $css = css();
+my $js = js();
+
+    Foswiki::Func::addToZone("script", "RedmineIntegrationPlugin", <<SCRIPT, "JQUERYPLUGIN,JQUERYPLUGIN::SELECT2,JQUERYPLUGIN::UI::DIALOG");
+$css$js
+SCRIPT
+
+return $contents;
+
+}
+
+
+
 sub _GET_ISSUE {
   my($session, $params, $topic, $web, $topicObject) = @_;
   # $session  - a reference to the Foswiki session object
@@ -964,7 +1043,7 @@ sub search_issue {
 
     my $sql = q/
     SELECT
-      issues.id as id,
+      issues.id as issue_id,
       issues.project_id as project_id,
       issues.subject as subject,
       trackers.name as tracker,
@@ -1003,7 +1082,7 @@ sub get_activitys {
 
     my $sql = "SELECT id, name FROM enumerations where project_id=?";
 
-    $res = db()->selectall_arrayref($sql, {Slice => {}}, $query->param("project"));
+    $res = db()->selectall_arrayref($sql, {Slice => {}}, $query->param("p"));
 
   
   };
@@ -1034,10 +1113,10 @@ sub add_time_entry {
   eval {
         $req = from_json($q->param("POSTDATA") || '{}');
 
-        $req->{user_name} = $session->{user};
+        $req->{user_name} = lc($session->{user});
 
         # Get User ID by loginname
-        my $sql_get_user_id = "SELECT id FROM users WHERE UPPER(login) = UPPER(?)";
+        my $sql_get_user_id = "SELECT id FROM users WHERE login = ?";
         $req->{user_id} = $db->selectrow_hashref($sql_get_user_id, undef, $req->{user_name})->{id};
 
         # Check if user exist in Redmine
@@ -1081,9 +1160,6 @@ sub add_time_entry {
 
         $req->{spent_on} = $db_parser->format_datetime($dt);
 
-        #tyear $dt->year()
-        #tmonth $dt->month()
-        #tweek $dt->week_number()
 
         my $sth = $db->prepare("INSERT INTO time_entries (project_id, user_id, issue_id, hours, comments, activity_id, spent_on, tyear, tmonth, tweek, created_on, updated_on) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), now());");
         $sth->execute($req->{project_id}, $req->{user_id}, $req->{issue_id}, $req->{hours}, $req->{comment}, $req->{activity_id}, $req->{spent_on}, $dt->year(), $dt->month(), $dt->week_number());
@@ -1093,9 +1169,9 @@ sub add_time_entry {
     };
     if ($@) {
         $response->header( -status => 500, -type => 'application/json', -charset => 'UTF-8' );
-        $response->print( to_json({status => 'error', 'code' => 'server_error', msg => "Server error: $@"}));
+        $response->print( to_json({status => 'error', 'code' => 'server_error', msg => "Server error: $@", reg => $req}));
         return
-    }
+    } 
 
   return to_json({status => 'success', id => $rv});
 

@@ -4,45 +4,9 @@
 
 %GET_ISSUE{9191}%
 
-%JQREQUIRE{"select2"}%
 
-<input id='select_ticket' />
+---+!! Time Tracker Test
 
-<script type="text/javascript">
-
-function formater(object) {
-    	var string = object.subject;
-    	var length = 60;
-    	var trimmedString = string.length > length ? string.substring(0, length - 3) + "..." : string.substring(0, length);
-    	return  object.tracker+" #"+object.id+": "+trimmedString
-    }
-
-$("#select_ticket").select2({
-  width: "500px",
-  minimumInputLength: 3,
-  ajax: {
-    url: "%SCRIPTURL{rest}%/RedmineIntegrationPlugin/search_issue",
-    dataType: 'json',
-    delay: 250,
-
-   data: function (term) {
-            return {
-                q: term, // search term
-            };
-        },
-
-    results: function (data) { // parse the results into the format expected by Select2.
-            // since we are using custom formatting functions we do not need to alter the remote JSON data
-            return { results: data };
-        }
-    },
-
-    formatResult: formater,
-
-    formatSelection: formater
-
-});
-
-</script>
+%RM_TIMETRACKER%
 
 %META:PREFERENCE{name="nowysiwyg" title="nowysiwyg" type="Set" value="1"}%
