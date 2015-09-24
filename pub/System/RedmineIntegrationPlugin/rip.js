@@ -1,3 +1,6 @@
+
+var storage = {}
+
 // Helper
 
 $(function() {
@@ -38,7 +41,6 @@ function formater(object) {
 
 // Model and Storage
 
-var storage = {}
 
 var create_timer = function () {
 
@@ -123,9 +125,9 @@ var send_to_redmine = function (id) {
 
 
     data_obj = {
+        issue_id: object.issue_id,
         project_id: object.project_id,
         activity_id: object.activity_id,
-        issue_id: object.issue_id,
         hours: (object.duration_total/1000/60/60),
         comment: object.comment
     };
@@ -321,7 +323,7 @@ form = dialog.find( "form" ).on( "submit", function( event ) {
 
 
 $("#input_ticket").select2({
-    width: "95%",
+    //width: "95%",
     minimumInputLength: 3,
     ajax: {
         url: (foswiki.preferences.SCRIPTURL+"/rest/RedmineIntegrationPlugin/search_issue"),
