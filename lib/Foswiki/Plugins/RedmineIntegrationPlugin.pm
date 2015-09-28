@@ -214,7 +214,7 @@ sub search_issue {
     LEFT JOIN issue_statuses ON issues.status_id = issue_statuses.id
     LEFT JOIN users ON issues.assigned_to_id = users.id
     LEFT JOIN trackers ON issues.tracker_id = trackers.id
-    WHERE issues.subject LIKE '%'||?||'%' OR issues.id = ?
+    WHERE issues.subject ILIKE '%'||?||'%' OR issues.id = ?
     /;
 
     $res = db()->selectall_arrayref($sql, {Slice => {}}, $req, int($req));
@@ -271,7 +271,7 @@ sub add_time_entry {
 
   my $db = db();
 
-  eval { $req = from_json($q->param("POSTDATA") || '{}') };
+  eval { $req = decode_json($q->param("POSTDATA") || '{}') };
   if ($@) { return build_server_error_response("No JSON Data!", $response) };
 
   # Get User ID by loginname
