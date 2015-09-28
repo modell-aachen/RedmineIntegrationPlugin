@@ -97,6 +97,7 @@ sub initPlugin {
     }
 
     Foswiki::Func::registerTagHandler( 'GET_ISSUE', \&_GET_ISSUE );
+    Foswiki::Func::registerTagHandler( 'GET_ISSUE_URL', \&_GET_ISSUE_URL );
 
     Foswiki::Func::registerRESTHandler( 'search_issue', \&search_issue, http_allow=>'GET' );
     Foswiki::Func::registerRESTHandler( 'get_activitys', \&get_activitys, http_allow=>'GET' );
@@ -130,6 +131,24 @@ sub db {
     return $db;
 }
 
+sub css {
+    return <<CSS;
+    <style media="all" type="text/css" >
+    \@import url("%PUBURLPATH%/%SYSTEMWEB%/RedmineIntegrationPlugin/rip.css?r=$RELEASE")
+    </style>
+CSS
+}
+
+sub _GET_ISSUE_URL {
+  my($session, $params, $topic, $web, $topicObject) = @_;
+
+  my $redmine_url = $Foswiki::cfg{RedmineIntegrationPlugin}{RedmineURL} || "";
+  my $redmine_issue_url = "$redmine_url/issues/$params->{_DEFAULT}";
+
+  return $redmine_issue_url;
+
+}
+
 
 sub _GET_ISSUE {
   my($session, $params, $topic, $web, $topicObject) = @_;
@@ -150,10 +169,14 @@ sub _GET_ISSUE {
     WHERE issues.id = ?
     /;
 
+  Foswiki::Func::addToZone('script', 'RedmineIntegrationPluginCSS', css);
+
   my $values_ref = $db->selectrow_hashref($sql, undef, $params->{_DEFAULT});
 
+  my $redmine_logo_path = '%PUBURL%/%SYSTEMWEB%/RedmineIntegrationPlugin/redmine_fluid_icon.png';
 
-  return "$values_ref->{'tracker'} #$values_ref->{'id'}($values_ref->{'status'}) $values_ref->{'subject'} | Zugewiesen an $values_ref->{'assigned_to'}";
+  return "<div class='redmine_issue_link'><img alt='redmine_icon' src='$redmine_logo_path'> <a target='_blank' href='%GET_ISSUE_URL{$values_ref->{'id'}}%'>$values_ref->{'tracker'} #$values_ref->{'id'}</a>: $values_ref->{'status'} | $values_ref->{'subject'}</div>";
+
 }
 
 
@@ -218,9 +241,9 @@ sub get_activitys {
 
   eval {
 
-    my $sql = "SELECT id, name FROM enumerations where project_id=?";
+    my $sql = "select * from enumerations where type='TimeEntryActivity' and ((parent_id is null and id not in (select parent_id from enumerations where project_id=?)) or project_id=?) and active=true;";
 
-    $res = db()->selectall_arrayref($sql, {Slice => {}}, $query->param("p"));
+    $res = db()->selectall_arrayref($sql, {Slice => {}}, $query->param("p"), $query->param("p"));
 
   
   };

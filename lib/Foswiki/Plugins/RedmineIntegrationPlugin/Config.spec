@@ -15,3 +15,6 @@ $Foswiki::cfg{RedmineIntegrationPlugin}{User} = "";
 
 # **PASSWORD**
 $Foswiki::cfg{RedmineIntegrationPlugin}{Password} = "";
+
+# **STRING**
+$Foswiki::cfg{RedmineIntegrationPlugin}{RedmineURL} = "";

@@ -3,10 +3,3 @@
 ---+!! Testing !RedmineIntegrationPlugin
 
 %GET_ISSUE{9191}%
-
-
----+!! Time Tracker Test
-
-%RM_TIMETRACKER%
-
-%META:PREFERENCE{name="nowysiwyg" title="nowysiwyg" type="Set" value="1"}%
