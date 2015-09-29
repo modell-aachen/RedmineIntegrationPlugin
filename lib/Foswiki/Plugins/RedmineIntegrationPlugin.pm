@@ -99,7 +99,7 @@ sub initPlugin {
     Foswiki::Func::registerTagHandler( 'GET_ISSUE', \&_GET_ISSUE );
     Foswiki::Func::registerTagHandler( 'GET_ISSUE_URL', \&_GET_ISSUE_URL );
 
-    Foswiki::Func::registerRESTHandler( 'search_issue', \&search_issue, http_allow=>'GET' );
+    Foswiki::Func::registerRESTHandler( 'search_redmine', \&search_redmine, http_allow=>'GET' );
     Foswiki::Func::registerRESTHandler( 'get_activitys', \&get_activitys, http_allow=>'GET' );
     Foswiki::Func::registerRESTHandler( 'add_time_entry', \&add_time_entry, http_allow=>'POST' );
 
@@ -189,22 +189,24 @@ sub build_server_error_response {
 
 }
 
-
-sub search_issue {
-  my ( $session, $subject, $verb, $response ) = @_;
-  my $res;
-  my $req;
-  my $query = $session->{request};
-
-  eval {
+sub search_by_project {
+  my ( $search_term ) = @_;
 
     my $db = db();
 
-    $req = $query->param("q");
+    my $sql = "SELECT id as id, name, identifier, status FROM projects WHERE status=1 AND (name ILIKE '%'||?||'%' OR id = ?)";
+    return db()->selectall_arrayref($sql, {Slice => {}}, $search_term, int($search_term));
 
-    my $sql = q/
+}
+
+sub search_by_issue {
+  my ( $search_term ) = @_;
+
+  my $db = db();
+
+  my $sql = q/
     SELECT
-      issues.id as issue_id,
+      issues.id as id,
       issues.project_id as project_id,
       issues.subject as subject,
       trackers.name as tracker,
@@ -217,47 +219,50 @@ sub search_issue {
     WHERE issues.subject ILIKE '%'||?||'%' OR issues.id = ?
     /;
 
-    $res = db()->selectall_arrayref($sql, {Slice => {}}, $req, int($req));
+    return db()->selectall_arrayref($sql, {Slice => {}}, $search_term, int($search_term));
 
-  
-  };
-  if ($@) {
-      $response->header( -status => 500, -type => 'application/json', -charset => 'UTF-8' );
-      $response->print( to_json({status => 'error', 'code' => 'server_error', msg => "Server error: $@"}));
-      return
+}
+
+sub activitys_by_project {
+  my ( $search_term ) = @_;
+
+  my $db = db();
+
+    my $sql = "select id, name from enumerations where type='TimeEntryActivity' and ((parent_id is null and id not in (select parent_id from enumerations where project_id=?)) or project_id=?) and active=true;";
+
+    return db()->selectall_arrayref($sql, {Slice => {}}, $search_term, $search_term);
+
+}
+
+
+
+sub search_redmine {
+  my ( $session, $subject, $verb, $response ) = @_;
+  my $query = $session->{request};
+  my $res = {};
+
+  my $q = $query->param("q");
+  my $typ = $query->param("type");
+
+  if ($typ eq 'project') {
+    $res = search_by_project($q);
   }
+
+  if ($typ eq 'issue') {
+    $res = search_by_issue($q);
+  }
+
+  if ($typ eq 'activity') {
+    $res = activitys_by_project($q);
+  }
+
 
   $response->header( -status => 200, -type => 'application/json', -charset => 'UTF-8' );
   $response->print(return to_json($res));
   return
-
 }
 
-sub get_activitys {
-  my ( $session, $subject, $verb, $response ) = @_;
-  my $res;
-  my $req;
-  my $query = $session->{request};
 
-  eval {
-
-    my $sql = "select * from enumerations where type='TimeEntryActivity' and ((parent_id is null and id not in (select parent_id from enumerations where project_id=?)) or project_id=?) and active=true;";
-
-    $res = db()->selectall_arrayref($sql, {Slice => {}}, $query->param("p"), $query->param("p"));
-
-  
-  };
-  if ($@) {
-      $response->header( -status => 500, -type => 'application/json', -charset => 'UTF-8' );
-      $response->print( to_json({status => 'error', 'code' => 'server_error', msg => "Server error: $@"}));
-      return
-  }
-
-  $response->header( -status => 200, -type => 'application/json', -charset => 'UTF-8' );
-      $response->print( to_json($res));
-      return
-
-}
 
 
 
@@ -285,12 +290,32 @@ sub add_time_entry {
   return build_server_error_response("No User found in Redmine!", $response);
   }
 
-  # Get Project ID from Issue in Redmine
-  eval {
-    my $sql_issue_id = "SELECT id, project_id FROM issues WHERE id = ?";
-    $req->{project_id} = $db->selectrow_hashref($sql_issue_id, undef, $req->{issue_id})->{project_id};
-  };
-  if ($@) { return build_server_error_response("The issue does not exist!", $response) };
+
+  if ($req->{issue_id} eq "") {
+
+      $req->{issue_id} = undef;
+
+      if ($req->{project_id} eq "") {
+        return build_server_error_response("No Project ID provided!", $response) 
+      }
+
+      # Check if project exist in Redmine
+      my $sql_check_project_id = "SELECT Count(*) FROM projects WHERE id = ?";
+      if ($db->selectrow_hashref($sql_check_project_id, undef, $req->{project_id})->{count} == 0) {
+      return build_server_error_response("No Project found in Redmine!", $response);
+      }
+
+
+    } else {
+
+
+      # Get Project ID from Issue in Redmine
+      eval {
+        my $sql_issue_id = "SELECT id, project_id FROM issues WHERE id = ?";
+        $req->{project_id} = $db->selectrow_hashref($sql_issue_id, undef, $req->{issue_id})->{project_id};
+      };
+      if ($@) { return build_server_error_response("The issue does not exist!", $response) };
+    }
 
 
   if ($req->{hours} eq "") {
