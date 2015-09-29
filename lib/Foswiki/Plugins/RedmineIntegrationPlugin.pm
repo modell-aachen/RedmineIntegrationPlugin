@@ -330,8 +330,6 @@ sub add_time_entry {
   my $db_parser = DateTime::Format::DBI->new($db);
   $req->{spent_on} = $db_parser->format_datetime($dt);
 
-  $req->{activity_id} = 0;
-
 
   eval {
     my $sth = $db->prepare("INSERT INTO time_entries (project_id, activity_id, user_id, issue_id, hours, comments, spent_on, tyear, tmonth, tweek, created_on, updated_on) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), now());");
