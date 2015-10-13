@@ -99,9 +99,9 @@ sub initPlugin {
     Foswiki::Func::registerTagHandler( 'GET_ISSUE', \&_GET_ISSUE );
     Foswiki::Func::registerTagHandler( 'GET_ISSUE_URL', \&_GET_ISSUE_URL );
 
-    Foswiki::Func::registerRESTHandler( 'search_redmine', \&search_redmine, http_allow=>'GET' );
-    Foswiki::Func::registerRESTHandler( 'get_activitys', \&get_activitys, http_allow=>'GET' );
-    Foswiki::Func::registerRESTHandler( 'add_time_entry', \&add_time_entry, http_allow=>'POST' );
+    Foswiki::Func::registerRESTHandler( 'search_redmine', \&search_redmine, http_allow=>'GET', authenticate => 1, validate => 0 );
+    Foswiki::Func::registerRESTHandler( 'get_activitys', \&get_activitys, http_allow=>'GET', authenticate => 1, validate => 0 );
+    Foswiki::Func::registerRESTHandler( 'add_time_entry', \&add_time_entry, http_allow=>'POST', authenticate => 1, validate => 0 );
 
 
 
