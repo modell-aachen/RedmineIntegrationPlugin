@@ -326,7 +326,17 @@ sub add_time_entry {
     return build_server_error_response("No comment provided!", $response) 
   }
 
-  my $dt   = DateTime->now;
+  my $dt;
+  if($req->{date}) {
+    return build_server_error_response("Could not parse date!", $response) unless $req->{date} =~ m#^\s*(\d{4})(\d{2})(\d{2})\s*$#;
+    $dt = DateTime->new(
+        year => $1,
+        month => $2,
+        day => $3,
+    );
+  } else {
+    $dt = DateTime->now;
+  }
   my $db_parser = DateTime::Format::DBI->new($db);
   $req->{spent_on} = $db_parser->format_datetime($dt);
 
