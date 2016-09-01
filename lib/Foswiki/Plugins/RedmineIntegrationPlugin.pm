@@ -103,8 +103,9 @@ sub initPlugin {
     Foswiki::Func::registerRESTHandler( 'get_activitys', \&get_activitys, http_allow=>'GET', authenticate => 1, validate => 0 );
     Foswiki::Func::registerRESTHandler( 'add_time_entry', \&add_time_entry, http_allow=>'POST', authenticate => 1, validate => 0 );
 
-
-
+    # Do not attempt to let DB connection survive requests because it can time
+    # out
+    undef $db;
 
     # Plugin correctly initialized
     return 1;
