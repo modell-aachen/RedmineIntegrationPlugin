@@ -1,0 +1,5 @@
+%META:TOPICINFO{author="BaseUserMapping_333" date="1439365702" format="1.1" version="10"}%
+%META:TOPICPARENT{name="RedmineIntegrationPlugin"}%
+---+!! Testing !RedmineIntegrationPlugin
+
+%GET_ISSUE{9191}%
