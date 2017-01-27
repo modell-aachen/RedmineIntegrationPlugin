@@ -281,7 +281,7 @@ sub add_time_entry {
   if ($@) { return build_server_error_response("No JSON Data!", $response) };
 
   # Get User ID by loginname
-  $req->{user_name} = lc($session->{user});
+  $req->{user_name} = Foswiki::Func::wikiToUserName(Foswiki::Func::getWikiName($session->{user}));
   my $sql_get_user_id = "SELECT id FROM users WHERE login = ?";
   $req->{user_id} = $db->selectrow_hashref($sql_get_user_id, undef, $req->{user_name})->{id};
 
