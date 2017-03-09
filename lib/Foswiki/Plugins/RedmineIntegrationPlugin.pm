@@ -277,7 +277,7 @@ sub add_time_entry {
 
   my $db = db();
 
-  eval { $req = decode_json($q->param("POSTDATA") || '{}') };
+  eval { $req = from_json($q->param("POSTDATA") || '{}') };
   if ($@) { return build_server_error_response("No JSON Data!", $response) };
 
   # Get User ID by loginname
@@ -297,7 +297,7 @@ sub add_time_entry {
       $req->{issue_id} = undef;
 
       if ($req->{project_id} eq "") {
-        return build_server_error_response("No Project ID provided!", $response) 
+        return build_server_error_response("No Project ID provided!", $response)
       }
 
       # Check if project exist in Redmine
@@ -320,11 +320,11 @@ sub add_time_entry {
 
 
   if ($req->{hours} eq "") {
-    return build_server_error_response("No spent time provided!", $response) 
+    return build_server_error_response("No spent time provided!", $response)
   }
 
   if ($req->{comment} eq "") {
-    return build_server_error_response("No comment provided!", $response) 
+    return build_server_error_response("No comment provided!", $response)
   }
 
   my $dt;
@@ -352,7 +352,7 @@ sub add_time_entry {
     $response->header( -status => 500, -type => 'application/json', -charset => 'UTF-8' );
     $response->print( to_json({status => 'error', 'code' => 'server_error', msg => "Server error: $@", reg => $req}));
     return
-  } 
+  }
 
   return to_json({status => 'success', id => $rv});
 
